@@ -29,10 +29,71 @@ schema_get_files_info = types.FunctionDeclaration(
     ),
 )
 
+schema_get_file_content = types.FunctionDeclaration(
+    name="get_file_content",
+    description="Reads a specific file\'s content in the specified directory, constrained to the working directory. If the file is longer than 10000 characters this is includead at the end: truncated at 10000 character",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "directory": types.Schema(
+                type=types.Type.STRING,
+                description="The directory containing the file to read, relative to the working directory. If not provided, use the working directory itself.",
+            ),
+            "file_name": types.Schema(
+                type=types.Type.STRING,
+                description="The file containing the data we want to read out, located in the directory.",
+            ),
+        },
+    ),
+)
+
+schema_write_file = types.FunctionDeclaration(
+    name="write_file",
+    description="Overwrites a file\'s content, constrained to the working directory. If the file is not yet created at the given path create the folder structure and the file.",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "directory": types.Schema(
+                type=types.Type.STRING,
+                description="The directory containing the file to read, relative to the working directory. If not provided, use the working directory itself.",
+            ),
+            "file_name": types.Schema(
+                type=types.Type.STRING,
+                description="The file we want to write into, located in the directory.",
+            ),
+            "content": types.Schema(
+                type=types.Type.STRING,
+                description="The content we want to write into the file.",
+            ),
+        },
+    ),
+)
+
+schema_schema_run_python_file = types.FunctionDeclaration(
+    name="run_python_file",
+    description="Calls a python function located in the specified directory, constrained to the working directory.",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "directory": types.Schema(
+                type=types.Type.STRING,
+                description="The directory containing the python script, relative to the working directory. If not provided, use the working directory itself.",
+            ),
+            "file_name": types.Schema(
+                type=types.Type.STRING,
+                description="The script we want to run, located in the directory.",
+            ),
+        },
+    ),
+)
+
 
 available_functions = types.Tool(
     function_declarations=[
         schema_get_files_info,
+        schema_get_file_content,
+        schema_write_file,
+        schema_schema_run_python_file,
     ]
 )
 
