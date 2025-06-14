@@ -4,98 +4,10 @@ from google import genai
 from google.genai import types
 import sys
 
-system_prompt = """
-You are a helpful AI coding agent.
+from prompts import system_prompt
 
-When a user asks a question or makes a request, make a function call plan. You can perform the following operations:
-
-- List files and directories
-
-All paths you provide should be relative to the working directory. You do not need to specify the working directory in your function calls as it is automatically injected for security reasons.
-"""
-
-
-schema_get_files_info = types.FunctionDeclaration(
-    name="get_files_info",
-    description="Lists files in the specified directory along with their sizes, constrained to the working directory.",
-    parameters=types.Schema(
-        type=types.Type.OBJECT,
-        properties={
-            "directory": types.Schema(
-                type=types.Type.STRING,
-                description="The directory to list files from, relative to the working directory. If not provided, lists files in the working directory itself.",
-            ),
-        },
-    ),
-)
-
-schema_get_file_content = types.FunctionDeclaration(
-    name="get_file_content",
-    description="Reads a specific file\'s content in the specified directory, constrained to the working directory. If the file is longer than 10000 characters this is includead at the end: truncated at 10000 character",
-    parameters=types.Schema(
-        type=types.Type.OBJECT,
-        properties={
-            "directory": types.Schema(
-                type=types.Type.STRING,
-                description="The directory containing the file to read, relative to the working directory. If not provided, use the working directory itself.",
-            ),
-            "file_name": types.Schema(
-                type=types.Type.STRING,
-                description="The file containing the data we want to read out, located in the directory.",
-            ),
-        },
-    ),
-)
-
-schema_write_file = types.FunctionDeclaration(
-    name="write_file",
-    description="Overwrites a file\'s content, constrained to the working directory. If the file is not yet created at the given path create the folder structure and the file.",
-    parameters=types.Schema(
-        type=types.Type.OBJECT,
-        properties={
-            "directory": types.Schema(
-                type=types.Type.STRING,
-                description="The directory containing the file to read, relative to the working directory. If not provided, use the working directory itself.",
-            ),
-            "file_name": types.Schema(
-                type=types.Type.STRING,
-                description="The file we want to write into, located in the directory.",
-            ),
-            "content": types.Schema(
-                type=types.Type.STRING,
-                description="The content we want to write into the file.",
-            ),
-        },
-    ),
-)
-
-schema_schema_run_python_file = types.FunctionDeclaration(
-    name="run_python_file",
-    description="Calls a python function located in the specified directory, constrained to the working directory.",
-    parameters=types.Schema(
-        type=types.Type.OBJECT,
-        properties={
-            "directory": types.Schema(
-                type=types.Type.STRING,
-                description="The directory containing the python script, relative to the working directory. If not provided, use the working directory itself.",
-            ),
-            "file_name": types.Schema(
-                type=types.Type.STRING,
-                description="The script we want to run, located in the directory.",
-            ),
-        },
-    ),
-)
-
-
-available_functions = types.Tool(
-    function_declarations=[
-        schema_get_files_info,
-        schema_get_file_content,
-        schema_write_file,
-        schema_schema_run_python_file,
-    ]
-)
+from prompts import system_prompt
+from call_function import call_function, available_functions
 
 
 def main(user_prompt, verbose):
@@ -136,9 +48,22 @@ def generate_content(client, messages, verbose):
             print("Response tokens:", response.usage_metadata.candidates_token_count)
 
         if response.function_calls:
+            function_responses = []
             function_calls = response.function_calls.copy()
             for func_call in function_calls:
-                print(f"Calling function: {func_call.name}({func_call.args})")
+                function_call_result = call_function(func_call, verbose)
+
+                if (not function_call_result.parts or not function_call_result.parts[0].function_response):
+                    raise Exception("empty function call result")
+                
+                if verbose:
+                    print(f"-> {function_call_result.parts[0].function_response.response}")
+
+                function_responses.append(function_call_result.parts[0])
+
+            if not function_responses:
+                raise Exception("no function responses generated, exiting.")
+
         else:
             print("Response:")
             print(response.text)
