@@ -9,6 +9,8 @@ from prompts import system_prompt
 from prompts import system_prompt
 from call_function import call_function, available_functions
 
+from config import MAX_ITERATIONS
+
 
 def main(user_prompt, verbose):
     print("verbose", verbose)
@@ -31,7 +33,22 @@ def main(user_prompt, verbose):
         types.Content(role="user", parts=[types.Part(text=user_prompt)]),
     ]
 
-    generate_content(client, messages, verbose)
+    for i in range(MAX_ITERATIONS):
+        try:
+            # there is only a return value if not response.function_calls
+            # so if there is a function call the loop won't break
+            response = generate_content(client, messages, verbose)
+            if response:
+                break
+        except Exception as e:
+            print(f"Error in generate_content: {e}")
+    
+    if response:
+        print("Final response:")
+        print(response)
+    else:
+        print(f"Maximum iterations ({MAX_ITERATIONS}) reached.")
+        sys.exit(1)
 
 
 def generate_content(client, messages, verbose):
@@ -43,14 +60,30 @@ def generate_content(client, messages, verbose):
                                                system_instruction=system_prompt),
         )
 
+        function_responses = []
+
         if verbose:
             print("Prompt tokens:", response.usage_metadata.prompt_token_count)
             print("Response tokens:", response.usage_metadata.candidates_token_count)
 
+        if response.candidates:
+            for candidate in response.candidates:
+                #print("====================================")
+                #print("candidate", candidate)
+                #print("\n")
+                #print("candidate.content", candidate.content)
+                #print("====================================")
+
+                #messages is a list and by appending to it we also modify the value of it in the main
+                function_call_content = candidate.content
+                messages.append(function_call_content)
+
+        if not response.function_calls:
+            return response.text
+
         if response.function_calls:
-            function_responses = []
-            function_calls = response.function_calls.copy()
-            for func_call in function_calls:
+
+            for func_call in response.function_calls:
                 function_call_result = call_function(func_call, verbose)
 
                 if (not function_call_result.parts or not function_call_result.parts[0].function_response):
@@ -64,9 +97,7 @@ def generate_content(client, messages, verbose):
             if not function_responses:
                 raise Exception("no function responses generated, exiting.")
 
-        else:
-            print("Response:")
-            print(response.text)
+            messages.append(types.Content(role="tool", parts=function_responses))
 
     except Exception as e:
         print(f"Error calling Gemini API: {e}")
